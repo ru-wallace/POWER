@@ -1,0 +1,14 @@
+{
+  "watch": [
+    "build"
+  ],
+  "ext": "js",
+  "ignore": [
+    "*.test.ts"
+  ],
+  "delay": "3",
+  "execMap": {
+    "ts": "tsc && node",
+    "js": "node"
+  }
+}
