@@ -2,7 +2,8 @@
 Description=Hodr Power Switch Web Server
 After=network.target
 [Service]
-Environment=NODE_ENV=production NODE_VERSION=24.4.0
+Environment=NODE_ENV=production
+#Environment=NODE_VERSION=24.4.0
 WorkingDirectory=%h/POWER
 Restart=always
 RestartSec=2
