@@ -2,6 +2,11 @@
 Description=Hodr Power Switch Web Server
 After=network.target
 [Service]
+# Note: The NODE_VERSION environment variable is commented out.
+#Use node version manager (NVM) to manage Node.js versions.
+#while in home directory, use the following command to set the version:
+#nvm use $(node -v) --save
+# This will set the version to the current one and create a .nvmrc file.
 Environment=NODE_ENV=production
 #Environment=NODE_VERSION=24.4.0
 WorkingDirectory=%h/POWER
