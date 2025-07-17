@@ -40,31 +40,39 @@ function loadOutputsArray() {
 // Middleware to verify JWT
 function verifyToken(req, res, next) {
     // Check for token cookie
+    const dest = req.path.slice(1);
+    console.log("Dest:", dest);
+    const redirect = "/login?dest=power";
+    
     var cookies = new Cookies(req, res);
     const token = cookies.get('token');
     if (!token) {
         console.log('No token provided');
-        return res.redirect('/login'); // Redirect to login if no token is provided
+        return res.redirect(redirect); // Redirect to login if no token is provided
     }
-    console.log('Token found:', token);
+    //console.log('Token found:', token);
     // Extract the token string from the header
     if (Array.isArray(token)) {
         return res.status(400).send('Invalid Token Format');
     }
 
-    //const tokenString = token.split(' ')[1]; // Assuming Bearer token format
 
     jwt.verify(token, secretKey, (err, decoded) => {
         if (err) {
             console.error('Token verification failed:', err);
-            return res.status(400).redirect('/login');
+            return res.status(400).redirect(redirect);
 
         }
         req.user = decoded;
-        console.log("Token verification succeed")
+        //console.log("Token verification succeed")
         next();
     });
 }
+
+app.use((req, res, next) => {
+    console.log("POWER", req.path);
+    next();
+})
 
 function parseStatus(text) {
     console.log("Result text:", text)
@@ -266,11 +274,25 @@ app.get('/login', (req, res) => {
 });
 
 app.get('/', verifyToken, (req, res) => {
+    console.log("/");
     res.render('dashboard', { title: 'Home', user: req.user });
 });
 
+// app.get('/power', verifyToken, (req, res) => {
+//     console.log("POWER");
+//     res.render('dashboard', { title: 'Home', user: req.user });
+// });
+
 
 app.get('/status', verifyToken, (req, res) => {
+    console.log("Getting power")
+    getPower().then(result => {
+        res.send(result);
+    });
+});
+
+app.get('/power/status', verifyToken, (req, res) => {
+    console.log("Getting power")
     getPower().then(result => {
         res.send(result);
     });
@@ -308,11 +330,8 @@ app.use((req, res, next) => {
 });
 
 
-
-
-
-
 app.listen(PORT, () => {
+
     console.log(`Server is running on http://localhost:${PORT}`);
 });
 

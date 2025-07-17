@@ -22,7 +22,8 @@ html(lang="en")
                         input(type="number" min="1" max="1000" value="5" name="cycleTime")
                         label(for="cycleTime") secs
             #footer 
-                a(href="logout") Logout
+                a(href="/") HODR
+                a(href="/logout") Logout
 
         script.
 
@@ -49,7 +50,7 @@ html(lang="en")
 
             function getStatus() {
                 console.log("Getting Status");
-                fetch('/status').then((response)=> {
+                fetch('/power/status').then((response)=> {
                     if (response.ok) {
                         response.json().then((result)=>{
                             const status = result.status;
@@ -85,7 +86,7 @@ html(lang="en")
                         return;
                     }
                     console.log(`Setting ${number} to ${newValue}`);
-                    fetch(`/set?p${number}=${newValue}`).then((response) => {
+                    fetch(`/power/set?p${number}=${newValue}`).then((response) => {
                         if (response.ok) {
                             response.json().then((result)=>{
 
@@ -111,7 +112,7 @@ html(lang="en")
                     const cycleLength = parseInt(this.closest('.output').querySelector('.cycle input').value);
 
                     console.log(`Setting ${number} to cycle with length ${cycleLength}`);
-                    fetch(`/cycle?p${number}=${cycleLength}`).then((response) => {
+                    fetch(`/power/cycle?p${number}=${cycleLength}`).then((response) => {
                         if (response.ok) {
                             response.json().then((result)=>{
 
@@ -131,4 +132,4 @@ html(lang="en")
 
             getStatus();
 
-            setInterval( getStatus, 10000);
+            setInterval( getStatus, 1000);

@@ -10,7 +10,7 @@ After=network.target
 Environment=NODE_ENV=production
 #Environment=NODE_VERSION=24.4.0
 WorkingDirectory=%h/POWER
-Restart=always
+Restart=on-failure
 RestartSec=2
 ExecStart=%h/.nvm/nvm-exec npm run start
 
