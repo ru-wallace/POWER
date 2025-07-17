@@ -2,6 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const dotenv = require('dotenv');
 var Cookies = require('cookies');
+const fs = require("fs");
 dotenv.config();
 
 const secretKey = process.env.JWT_SECRET || 'defaultSecretKey';
@@ -20,6 +21,21 @@ const PORT = process.env.PORT || 3000;
 const USERNAME = process.env.USERNAME || 'admin';
 const PASSWORD = process.env.PASSWORD || 'password';
 const IP_POWER_IP = process.env.IP_POWER_IP;
+
+
+function loadOutputs() {
+    var outputs = JSON.parse(fs.readFileSync('outputs.json', 'utf8'));
+    return outputs;
+}
+
+function loadOutputsArray() {
+    var names = [null, null, null, null];
+    const outputs = loadOutputs();
+    names.forEach((_, index) => {
+        names[index] = outputs[JSON.stringify(index + 1)];
+    })
+    return names;
+}
 
 // Middleware to verify JWT
 function verifyToken(req, res, next) {
@@ -61,7 +77,12 @@ function parseStatus(text) {
     status[2] = parseInt(text[p3Pos + 4])
     var p4Pos = text.search(/p64=/);
     status[3] = parseInt(text[p4Pos + 4])
-    return JSON.stringify(status);
+    var names = loadOutputsArray();
+
+    return JSON.stringify({
+        status: status,
+        names: names
+    });
 }
 
 function parseCycleStatus(text) {
@@ -84,9 +105,15 @@ function parseCycleStatus(text) {
         status[3] = text.slice(p4Pos+4, p4Pos + 12) == "cycle ok"
     }
 
-    console.log("Slice:", text.slice(p4Pos+4, p4Pos + 12));
-    return JSON.stringify(status);
+    // console.log("Slice:", text.slice(p4Pos+4, p4Pos + 12));
+    var names = loadOutputsArray();
+
+    return JSON.stringify({
+        status: status,
+        names: names
+    });
 }
+
 
 async function getPower() {
     const user = process.env.IP_POWER_USER || 'admin';
@@ -220,7 +247,7 @@ app.post('/login', (req, res) => {
         // Set the token in a cookie
         cookies.set('token', token, {
             httpOnly: true, // Prevents client-side JavaScript from accessing the cookie
-            secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+            secure: false, // Use secure cookies in production
             maxAge: 3600000 // 1 hour
         });
         return res.redirect('/'); // Redirect to the home page after successful login

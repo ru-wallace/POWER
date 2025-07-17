@@ -16,6 +16,7 @@ html(lang="en")
                     .status 
                         span Fetching...
                     button.toggle Toggle
+                    span.name(id=`name-${i}`)
                     .cycle
                         button Cycle
                         input(type="number" min="1" max="1000" value="5" name="cycleTime")
@@ -36,16 +37,29 @@ html(lang="en")
                 outlet.classList.add(string);
                 outlet.querySelector('.status').innerText = status ? "On" : "Off";
             }
+
+
+            function setOutput(id, name) {
+                if (name == null) {
+                    name = "-";
+                }
+
+                document.getElementById(`name-${id}`).innerText = name;
+            }
+
             function getStatus() {
                 console.log("Getting Status");
                 fetch('/status').then((response)=> {
                     if (response.ok) {
                         response.json().then((result)=>{
-
+                            const status = result.status;
+                            const names = result.names;
                             console.log(result);
-                            result.forEach((item, index) => {
+                            status.forEach((item, index) => {
                                 setStatus(index +1, item);
+                                setOutput(index +1, names[index]);
                             });
+                            
                         });
 
                     } else {
@@ -76,8 +90,9 @@ html(lang="en")
                             response.json().then((result)=>{
 
                                 console.log(result);
-                                result.forEach((item, index) => {
-                                    setStatus(index +1, item);
+                                result.status.forEach((item, index) => {
+                                setStatus(index +1, item);
+                                setOutput(index +1, result.names[index]);
                                 });
                             });
                         }
