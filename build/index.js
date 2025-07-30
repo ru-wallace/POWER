@@ -143,7 +143,7 @@ async function setPowerCycle({ p1, p2, p3, p4 }) {
     var status = [null, null, null, null];
 
     const EMAIL_SUBJECT = "HODR Power Cycle Triggered";
-    const EMAIL_TEXT = `DEVICE: ${process.env.EMAIL_SOURCE_NAME}\nPower cycle triggered with status: ${JSON.stringify(status)}`;
+    const EMAIL_TEXT = `DEVICE: ${process.env.EMAIL_SOURCE_NAME}\nPower cycle triggered with status: ${JSON.stringify({ p1, p2, p3, p4 })}`;
     sendEmail(EMAIL_SUBJECT, EMAIL_TEXT).then(() => {
         console.log("Email sent successfully");
     }).catch((err) => {
