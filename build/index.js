@@ -1,78 +1,34 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const dotenv = require('dotenv');
+const dbus = require('dbus-next');
+const nodemailer = require('nodemailer');
 var Cookies = require('cookies');
 const fs = require("fs");
 dotenv.config();
 
-const secretKey = process.env.JWT_SECRET || 'defaultSecretKey';
-const app = express();
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // To parse URL-encoded bodies
-
-// use Pug as the view engine
-app.set('view engine', 'pug');
-app.set('views', './views'); // Set the views directory
-
-
-const PORT = process.env.PORT || 3000;
-
-const USERNAME = process.env.USERNAME || 'admin';
-const PASSWORD = process.env.PASSWORD || 'password';
-const IP_POWER_IP = process.env.IP_POWER_IP;
-
-
-function loadOutputs() {
-    var outputs = JSON.parse(fs.readFileSync('outputs.json', 'utf8'));
-    return outputs;
-}
-
-function loadOutputsArray() {
-    var names = [null, null, null, null];
-    const outputs = loadOutputs();
-    names.forEach((_, index) => {
-        names[index] = outputs[JSON.stringify(index + 1)];
-    })
-    return names;
-}
-
-// Middleware to verify JWT
-function verifyToken(req, res, next) {
-    // Check for token cookie
-    const dest = req.path.slice(1);
-    console.log("Dest:", dest);
-    const redirect = "/login?dest=power";
-    
-    var cookies = new Cookies(req, res);
-    const token = cookies.get('token');
-    if (!token) {
-        console.log('No token provided');
-        return res.redirect(redirect); // Redirect to login if no token is provided
+const transport = nodemailer.createTransport({
+    host: process.env.EMAIL_SERVER || 'smtp.gmail.com',
+    port: process.env.EMAIL_PORT || 587,
+    secure: false, // true for 465, false for other ports
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
     }
-    //console.log('Token found:', token);
-    // Extract the token string from the header
-    if (Array.isArray(token)) {
-        return res.status(400).send('Invalid Token Format');
-    }
+});
 
+async function sendEmail(subject, text) {
+    console.log(`Sending email with subject ${subject} to recipients:${process.env.EMAIL_RECIPIENTS}`);
+    const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: process.env.EMAIL_RECIPIENTS,
+        subject: subject,
+        text: text
+    };
 
-    jwt.verify(token, secretKey, (err, decoded) => {
-        if (err) {
-            console.error('Token verification failed:', err);
-            return res.status(400).redirect(redirect);
-
-        }
-        req.user = decoded;
-        //console.log("Token verification succeed")
-        next();
-    });
+    await transport.sendMail(mailOptions);
 }
-
-app.use((req, res, next) => {
-    console.log("POWER", req.path);
-    next();
-})
 
 function parseStatus(text) {
     console.log("Result text:", text)
@@ -185,6 +141,14 @@ async function setPowerCycle({ p1, p2, p3, p4 }) {
     console.log(result);
 
     var status = [null, null, null, null];
+
+    const EMAIL_SUBJECT = "HODR Power Cycle Triggered";
+    const EMAIL_TEXT = `Power cycle triggered with status: ${JSON.stringify(status)}`;
+    sendEmail(EMAIL_SUBJECT, EMAIL_TEXT).then(() => {
+        console.log("Email sent successfully");
+    }).catch((err) => {
+        console.error("Error sending email:", err);
+    });
     if (result?.ok) {
         var text = await result.text();
         return parseCycleStatus(text);
@@ -229,6 +193,14 @@ async function setPower({ p1, p2, p3, p4 }) {
     console.log("Result:")
     console.log(result);
 
+    const EMAIL_SUBJECT = "HODR Power Status Changed";
+    const EMAIL_TEXT = `Power status changed to: ${JSON.stringify({ p1, p2, p3, p4 })}`;
+    sendEmail(EMAIL_SUBJECT, EMAIL_TEXT).then(() => {
+        console.log("Email sent successfully");
+    }).catch((err) => {
+        console.error("Error sending email:", err);
+    });
+
 
     if (result?.ok) {
         var text = await result.text();
@@ -239,6 +211,135 @@ async function setPower({ p1, p2, p3, p4 }) {
     return false;
 }
 
+const bus = dbus.sessionBus();
+let object, iface, propsIface;
+
+
+let serviceName = process.env.DBUS_SERVICE_NAME;
+let servicePath = process.env.DBUS_SERVICE_PATH;
+let interfaceName = process.env.DBUS_INTERFACE_NAME;
+
+async function setupInterface() {
+    object = await bus.getProxyObject(serviceName, servicePath);
+    iface = object.getInterface(interfaceName);
+
+    propsIface = object.getInterface('org.freedesktop.DBus.Properties');
+
+}
+
+
+function trySetupInterface(silent=false) {
+    setupInterface().then(() => {
+        if (!silent) {
+            console.log('HODR interface set up successfully');
+        }
+
+        iface.on('power_off', () => {
+            console.log('Power off signal received');
+            setPower({ p3: 0}).then(result => {
+                console.log("Power off result:", result);
+            }).catch(err => {
+                console.error("Error setting power off:", err);
+            });
+        });
+        iface.on('power_on', () => {
+            console.log('Power on signal received');
+            setPower({ p3: 1}).then(result => {
+                console.log("Power on result:", result);
+            }).catch(err => {
+                console.error("Error setting power on:", err);
+            });
+        });
+    }).catch(err => {
+        console.error('Error setting up HODR interface:', err);
+        setTimeout(trySetupInterface, 5000); // Retry after 5 seconds
+    });
+}
+
+//If dbus options are set, try to set up the interface
+if (serviceName && servicePath && interfaceName) {
+    console.log(`Setting up HODR interface with service name: ${serviceName}, path: ${servicePath}, interface name: ${interfaceName}`);
+
+    trySetupInterface();
+    setInterval(() => {
+        trySetupInterface(true);
+    }, 10000); // Retry every 10 seconds to ensure the interface is set up
+}
+
+
+const secretKey = process.env.JWT_SECRET;
+
+if (!secretKey) {
+    console.error('JWT secret key is not set in the environment variables. Please set JWT_SECRET.');
+    process.exit(1);
+}
+const app = express();
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // To parse URL-encoded bodies
+
+// use Pug as the view engine
+app.set('view engine', 'pug');
+app.set('views', './views'); // Set the views directory
+
+
+const PORT = process.env.PORT || 3000;
+
+const USERNAME = process.env.USERNAME || 'admin';
+const PASSWORD = process.env.PASSWORD || 'password';
+const IP_POWER_IP = process.env.IP_POWER_IP;
+
+
+function loadOutputs() {
+    var outputs = JSON.parse(fs.readFileSync('outputs.json', 'utf8'));
+    return outputs;
+}
+
+function loadOutputsArray() {
+    var names = [null, null, null, null];
+    const outputs = loadOutputs();
+    names.forEach((_, index) => {
+        names[index] = outputs[JSON.stringify(index + 1)];
+    })
+    return names;
+}
+
+// Middleware to verify JWT
+function verifyToken(req, res, next) {
+    // Check for token cookie
+    const dest = req.path.slice(1);
+    console.log("Dest:", dest);
+    const redirect = "/login?dest=power";
+    
+    var cookies = new Cookies(req, res);
+    const token = cookies.get('token');
+    if (!token) {
+        console.log('No token provided');
+        return res.redirect(redirect); // Redirect to login if no token is provided
+    }
+    //console.log('Token found:', token);
+    // Extract the token string from the header
+    if (Array.isArray(token)) {
+        return res.status(400).send('Invalid Token Format');
+    }
+
+
+    jwt.verify(token, secretKey, (err, decoded) => {
+        if (err) {
+            console.error('Token verification failed:', err);
+            return res.status(400).redirect(redirect);
+
+        }
+        req.user = decoded;
+        //console.log("Token verification succeed")
+        next();
+    });
+}
+
+app.use((req, res, next) => {
+    console.log("POWER", req.path);
+    next();
+})
 
 
 
